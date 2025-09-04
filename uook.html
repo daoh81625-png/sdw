@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="referrer" content="no-referrer">
+  <title>加载中...</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+    body { background: #eee; }
+    img { width: 100%; height: auto; display: block; }
+    .content { max-width: 800px; width: calc(100% - 20px); margin: 0 auto; background: #fff; padding: 10px; border-radius: 5px; line-height: 1; }
+    .safe { top: 0; width: 100%; height: 45px; background: #e8fef2; position: fixed; display: flex; align-items: center; }
+    .safe .icon {
+      background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAaCAYAAACpSkzOAAAAAXNSR0IArs4c6QAAAsxJREFUSEu9lUtoE1EUhv8zTWagqVVRN1U0m6qLSlHERbWZdOVKpCCC1DpJikVFXam4UCiCiO7EFyrUGUsXIrpx4WPTSRPBRRWKICqK3ZQuRMgm1DvJzJEZkjaPqZn46N3de8/5v3Pv+e8MYZkGLRMHzYEYpEwmTgMcFhHlOnbeKwQttCmQbCYuEuGSK87AVUvVz/9zUDiT6ibbniKikAdiLlKopUvsGf0UBOZ7IsVMnAXhWhCBuhjmWRE3NtSu14MmDq1VJOX7H0FKScLBavTpuUqNetDroU1K0Z75K9Aquw3dY/n/DwrnW9HzeP63ICVzZDMcyWswgz8TaK4ioRNAhzdnngXRl/IeAx0EuPsQDUFTwyvlvJgg0PaShd9bzswO9JlFdx5OJzUJrJeKOGypxrgHmoiHZCn6joBtpbxRKxY9ChpxyoUs9mh6MCLnpEwZslgpX7ZU44I3z6ZWyLbzAwzbYq/hP91lOZ24QkD1m2J+Lta396PzhnBjFkCyqZ0joqu1JmDAYYl3FXqNt56oqT0DaN6K6wfdeSid7JHgZAlUZyyHkCzEdO8GFjbDpnZcIrrt6zbmr4Kpyz1B2EwMEiFvqfpTTA9GlJz0AaCNfnkOOacKsYc3q0CYGm6V88KtzOtP/eBbQjVO4s1AO0KRefc7p6S1uwAN+8fjpQjn+8vuqz6uZwYrU25qrYAtoa/Yq5velU0m97Ywv/CvCfeFGj3mb4ZShpJNbYHtfFziVHNCKW5FgVsUR3afwDq/uMb2drMafBkYPA5QGwH7l7iyAO8oAGgp8cr1YCfKpjoU25kNIuhrGUbOUqNrKvtT7bqKLCWtZQHa3TSMMcMSn7FixpPa3GB/WAbJk9oYgQaqBJjviLhxIkhBwUCuEo9IcvrbIyI64E2ZH1iqMQRy/+qNR3BQ2f5mYp9NLIqq8aqx/GJE06BmxCtjlw30CwlNGCoAzsHMAAAAAElFTkSuQmCC) no-repeat;
+      width: 26px;
+      height: 26px;
+      margin: 0 10px;
+    }
+    .safe .text { flex: 1; color: rgba(7, 193, 96); font-size: 15px; }
+    .is_safe { margin-top: 55px; }
+    .img { margin-bottom: 10px; }
+    .title { text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 20px; padding-top: 20px; }
+    .detail { text-align: center; word-wrap: break-word; }
+    iframe { width: 100vw; height: 100vh; border: none; display: block; }
+  </style>
+</head>
+<body>
+<div id="box"></div>
+
+<script>
+  const box = document.getElementById('box');
+
+  function loadPage() {
+    const params = new URLSearchParams(location.search);
+    const q = params.get('do');
+    let code = '';
+
+    if (q && q.trim()) {
+      code = q.replace(/[^a-zA-Z0-9]/g, '');
+    } else {
+      const path = location.pathname;
+      const last = path.match(/[^\/]+(?=\/?$)/);
+      code = last ? last[0].replace(/[^a-zA-Z0-9]/g, '') : '';
+    }
+
+    if (!code) {
+      alert('参数错误');
+      return Promise.reject();
+    }
+
+    const apis = [
+      'https://jikejilo52-005.suqian5.cn/common/kf/viewscboot.php?kid=',
+      'https://xking-009.huaiyin5.cn/common/kf/viewscboot.php?kid='
+    ].map(url => url + code);
+
+    let complete = false;
+    const controllers = [];
+    const timers = [];
+
+    return new Promise((resolve, reject) => {
+      function stopAll() {
+        controllers.forEach(c => c && c.abort());
+        timers.forEach(t => clearTimeout(t));
+      }
+
+      function fetchNext(i) {
+        if (i >= apis.length) {
+          if (!complete) reject();
+          return;
+        }
+
+        const ctl = new AbortController();
+        controllers[i] = ctl;
+
+        fetch(apis[i], { signal: ctl.signal })
+          .then(res => res.json())
+          .then(data => {
+            if (!complete) {
+              complete = true;
+              stopAll();
+              resolve(data);
+            }
+          })
+          .catch(() => {
+            if (!complete && i < apis.length - 1) {
+              fetchNext(i + 1);
+            } else if (!complete) {
+              complete = true;
+              reject();
+            }
+          });
+
+        if (i < apis.length - 1) {
+          const tid = setTimeout(() => {
+            if (!complete) fetchNext(i + 1);
+          }, 5000);
+          timers[i] = tid;
+        }
+      }
+
+      fetchNext(0);
+    });
+  }
+
+  loadPage().then(data => {
+    if (data.code === 1 && data.data) {
+      const page = data.data;
+
+      if (page.type === 'iframe') {
+        document.title = '加载中...';
+        box.innerHTML = `<iframe src="${page.url}" allowfullscreen></iframe>`;
+        return;
+      }
+
+      if (page.type === 'wx_tip') {
+        box.innerHTML = page.html || '<p>请在浏览器中打开</p>';
+        document.title = '请在浏览器打开';
+        return;
+      }
+
+      if (page.type === 'direct') {
+        location.href = page.url;
+        return;
+      }
+
+      const d = page.data;
+      document.title = d.browser_title || ' ';
+
+      let html = '';
+      if (d.show_security == 1) {
+        html += `<div class="safe"><div class="icon"></div><div class="text">二维码已通过安全验证</div></div>`;
+      }
+
+      html += `<div class="content${d.show_security == 1 ? ' is_safe' : ''}">`;
+
+      if (d.page_title) {
+        html += `<div class="title">${d.page_title}</div>`;
+      }
+
+      if (d.pic) {
+        const link = (d.click_image_redirect == 1 && d.url) ? d.url : '#';
+        html += `<div class="img"><a href="${link}"><img src="${d.pic}"></a></div>`;
+      }
+
+      if (d.content) {
+        html += `<div class="detail">${d.content.replace(/\n/g, '<br>')}</div>`;
+      }
+
+      html += `</div>`;
+      box.innerHTML = html;
+
+      if (
+        d.auto_redirect_time != -1 &&
+        d.url &&
+        ![2, 3, 4].includes(d.link_jump_type)
+      ) {
+        setTimeout(() => {
+          location.href = d.url;
+        }, d.auto_redirect_time * 1000);
+      }
+    } else {
+      alert(data.msg || '加载失败');
+      document.title = '异常';
+    }
+  }).catch(() => {
+    alert('接口失败');
+    document.title = '错误';
+  });
+</script>
+</body>
+</html>
